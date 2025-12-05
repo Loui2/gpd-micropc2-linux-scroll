@@ -59,6 +59,57 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # ============================================================================
+# DEBUG REPORT FUNCTION
+# ============================================================================
+
+# print_debug_report()
+#
+# Collects and displays comprehensive debugging information for troubleshooting.
+# Called by error handlers when installation or service start fails.
+#
+# Outputs:
+#   - System info (OS, kernel, desktop environment)
+#   - Permission status (input group, uinput module/device, udev rules)
+#   - Input device list (first 30 for readability)
+#   - ALPS device details (if any)
+#   - Recent service logs (last 30 lines, with home paths sanitized)
+#
+# Note: Home directory paths are sanitized to /home/USER for privacy.
+print_debug_report() {
+    echo ""
+    echo "================================================================"
+    echo "DEBUG REPORT - Copy everything below when reporting issues"
+    echo "================================================================"
+    echo ""
+    echo "=== System Info ==="
+    echo "Script version: $VERSION"
+    echo "OS: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '"')"
+    echo "Kernel: $(uname -r)"
+    echo "Arch: $(uname -m)"
+    echo "Desktop: ${XDG_CURRENT_DESKTOP:-unknown} (${XDG_SESSION_TYPE:-unknown})"
+    echo ""
+    echo "=== Permissions ==="
+    echo "In input group: $(groups | grep -q '\binput\b' && echo 'YES' || echo 'NO')"
+    echo "uinput module loaded: $(lsmod | grep -q uinput && echo 'YES' || echo 'NO')"
+    echo "uinput device permissions: $(stat -c '%a %G' /dev/uinput 2>/dev/null || echo 'not found')"
+    echo "Udev rule exists: $(test -f /etc/udev/rules.d/99-gpd-scroll.rules && echo 'YES' || echo 'NO')"
+    echo ""
+    echo "=== Input Devices (first 30) ==="
+    cat /proc/bus/input/devices 2>/dev/null | grep -E "^N: Name=" | sed 's/^N: Name=//' | head -30
+    echo "(Full list: cat /proc/bus/input/devices)"
+    echo ""
+    echo "=== ALPS Devices ==="
+    cat /proc/bus/input/devices 2>/dev/null | grep -A 4 -i alps || echo "No ALPS devices found"
+    echo ""
+    echo "=== Service Logs (last 30 lines) ==="
+    journalctl --user -u gpd-scroll -n 30 --no-pager 2>/dev/null | sed "s|/home/[^/]*|/home/USER|g" || echo "No logs available"
+    echo ""
+    echo "================================================================"
+    echo "END DEBUG REPORT"
+    echo "================================================================"
+}
+
+# ============================================================================
 # EMBEDDED FILES
 # ============================================================================
 
@@ -84,6 +135,7 @@ import sys
 import signal
 import select
 import time
+import traceback
 import evdev
 from evdev import ecodes, UInput
 
@@ -197,6 +249,7 @@ def find_alps_devices():
     mouse = None
     touchpad = None
     found_devices = []
+    permission_errors = 0
 
     for path in evdev.list_devices():
         try:
@@ -214,14 +267,39 @@ def find_alps_devices():
                     dev.close()
             else:
                 dev.close()
-        except (PermissionError, OSError) as e:
+        except PermissionError:
+            permission_errors += 1
+            log(f"Warning: Permission denied for {path}")
+        except OSError as e:
             log(f"Warning: Could not access {path}: {e}")
 
-    # Log found devices if detection fails (helps debugging)
+    # Detailed debug output if detection fails
     if not mouse or not touchpad:
-        log("Available input devices:")
-        for d in found_devices:
-            log(f"  {d}")
+        log("")
+        log("=== Device Detection Debug ===")
+        log(f"Permission errors: {permission_errors}")
+        log(f"Devices accessible: {len(found_devices)}")
+        if permission_errors > 0 and len(found_devices) == 0:
+            log("")
+            log("FIX: Permission denied for ALL devices - ensure you're in 'input' group:")
+            log("  1. Run: sudo usermod -aG input $USER")
+            log("  2. LOG OUT and back in (required)")
+        elif permission_errors > 0:
+            log("")
+            log(f"WARNING: Permission denied for {permission_errors} device(s)")
+            log("Some devices may not be accessible. Consider adding to 'input' group:")
+            log("  1. Run: sudo usermod -aG input $USER")
+            log("  2. LOG OUT and back in (required)")
+        log("")
+        log("Devices found:")
+        if found_devices:
+            for d in found_devices:
+                log(f"  {d}")
+        else:
+            log("  (none - all had permission errors)")
+        log("")
+        log("Looking for: 'ALPS' + '36B6' in device name")
+        log("If your device has a different name format, please report it.")
 
     return mouse, touchpad
 
@@ -552,8 +630,16 @@ def main():
         log("Created virtual scroll device")
     except Exception as e:
         log(f"ERROR: Could not create virtual device: {e}")
-        log("Make sure uinput module is loaded and you have permissions.")
-        log("Try: sudo modprobe uinput")
+        log("")
+        log("=== uinput Debug ===")
+        log(f"uinput exists: {os.path.exists('/dev/uinput')}")
+        log(f"uinput readable: {os.access('/dev/uinput', os.R_OK)}")
+        log(f"uinput writable: {os.access('/dev/uinput', os.W_OK)}")
+        log("")
+        log("FIX: Try these commands:")
+        log("  1. sudo modprobe uinput")
+        log("  2. sudo udevadm control --reload-rules && sudo udevadm trigger")
+        log("  3. Ensure user is in 'input' group, then log out/in")
         sys.exit(1)
 
     log("Ready. Hold middle button + move touchpad to scroll.")
@@ -698,7 +784,14 @@ def main():
     except KeyboardInterrupt:
         shutdown(None, None)
     except Exception as e:
-        log(f"ERROR: {e}")
+        log(f"ERROR: Unexpected error: {e}")
+        log("")
+        log("=== Debug Info ===")
+        log(f"Exception type: {type(e).__name__}")
+        log(f"Traceback: {traceback.format_exc()}")
+        log("")
+        log("Please report this error at:")
+        log("  https://github.com/Loui2/gpd-micropc2-linux-scroll/issues")
         shutdown(None, None)
 
 
@@ -1241,7 +1334,13 @@ do_install() {
         echo -e "${RED}not found${NC}"
         echo ""
         echo "Python 3 is required but not installed."
-        echo "Install with: sudo pacman -S python"
+        print_debug_report
+        echo ""
+        echo "=== Fix ==="
+        echo "Install Python 3:"
+        echo "  Arch:   sudo pacman -S python"
+        echo "  Debian: sudo apt install python3"
+        echo "  Fedora: sudo dnf install python3"
         exit 1
     fi
     echo -e "${GREEN}$(python3 --version)${NC}"
@@ -1269,7 +1368,14 @@ do_install() {
         if ! sudo pacman -S --noconfirm python-evdev; then
             echo ""
             echo -e "${RED}Error: Failed to install python-evdev.${NC}"
-            echo "Please install manually and run this script again."
+            print_debug_report
+            echo ""
+            echo "=== Fix ==="
+            echo "Install python-evdev manually:"
+            echo "  Arch:   sudo pacman -S python-evdev"
+            echo "  Debian: sudo apt install python3-evdev"
+            echo "  Fedora: sudo dnf install python3-evdev"
+            echo "  pip:    pip install evdev"
             exit 1
         fi
     fi
@@ -1298,7 +1404,11 @@ do_install() {
         if ! sudo modprobe uinput; then
             echo -e "${RED}failed${NC}"
             echo "Error: Could not load uinput module."
-            echo "Try manually: sudo modprobe uinput"
+            print_debug_report
+            echo ""
+            echo "=== Fix ==="
+            echo "Try: sudo modprobe uinput"
+            echo "If that fails, uinput may need to be compiled into your kernel."
             exit 1
         fi
         echo -e "${GREEN}loaded${NC}"
@@ -1363,15 +1473,24 @@ do_install() {
     systemctl --user enable gpd-scroll.service
     systemctl --user start gpd-scroll.service
 
-    # Verify service started
-    sleep 1
+    # Verify service started (wait up to 5 seconds)
+    for i in {1..10}; do
+        if systemctl --user is-active gpd-scroll.service &>/dev/null; then
+            break
+        fi
+        sleep 0.5
+    done
     if ! systemctl --user is-active gpd-scroll.service &>/dev/null; then
         echo -e "${RED}failed${NC}"
         echo ""
-        echo "Service failed to start. Check logs:"
-        echo "  journalctl --user -u gpd-scroll -n 20"
+        echo "Service failed to start."
+        print_debug_report
         echo ""
-        journalctl --user -u gpd-scroll -n 5 --no-pager | sed 's/^/  /'
+        echo "=== Common Fixes ==="
+        echo "1. Add to input group: sudo usermod -aG input \$USER"
+        echo "   Then LOG OUT and back in (required for group changes)"
+        echo "2. Reload udev: sudo udevadm control --reload-rules && sudo udevadm trigger"
+        echo "3. Report issue: https://github.com/Loui2/gpd-micropc2-linux-scroll/issues"
         exit 1
     fi
     echo -e "${GREEN}✓${NC}"
