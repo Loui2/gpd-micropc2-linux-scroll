@@ -16,6 +16,8 @@ The installer guides you through preferences and handles everything.
 
 **Requirements:** Linux with systemd, Python 3, `python-evdev`
 
+**Tested on:** Arch Linux + KDE Plasma (Wayland)
+
 The installer auto-installs `python-evdev` via pacman. For other distros, install it first:
 ```bash
 # Fedora
