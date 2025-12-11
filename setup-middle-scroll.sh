@@ -1025,8 +1025,11 @@ prompt_preferences() {
 
     # 1. Scroll Direction
     echo "1. Scroll Direction"
-    echo "   - Natural: Content follows finger (like mobile/macOS)"
-    echo "   - Traditional: Scroll bar follows finger (classic Windows)"
+    echo "   Controls which way content moves when you drag your finger:"
+    echo "   - Natural: Drag down → content moves down (like a phone touchscreen)"
+    echo "   - Traditional: Drag down → content moves up (like dragging a scrollbar)"
+    echo ""
+    echo "   Applies to both vertical and horizontal scrolling."
     echo ""
     read -p "   Choose [N]atural or [T]raditional (default: Natural): " dir_choice
     case "$dir_choice" in
@@ -1041,7 +1044,8 @@ prompt_preferences() {
 
     # 2. Horizontal Scrolling
     echo "2. Horizontal Scrolling"
-    echo "   Enable left/right scrolling when moving finger horizontally?"
+    echo "   Allow left/right scrolling when moving finger horizontally."
+    echo "   When disabled, horizontal finger movement is ignored entirely."
     echo ""
     read -p "   Enable horizontal scroll? [Y/n] (default: Yes): " h_choice
     case "$h_choice" in
@@ -1056,10 +1060,12 @@ prompt_preferences() {
 
     # 3. Scroll Sensitivity
     echo "3. Scroll Sensitivity"
-    echo "   How much touchpad movement per scroll tick:"
-    echo "   - Low: Slower, more precise scrolling"
-    echo "   - Medium: Balanced (recommended)"
-    echo "   - High: Faster scrolling"
+    echo "   Pixels of finger movement required to trigger one scroll tick:"
+    echo "   - Low (30px): More finger movement per tick - precise, slower scrolling"
+    echo "   - Medium (15px): Balanced movement per tick (recommended)"
+    echo "   - High (8px): Less finger movement per tick - faster scrolling"
+    echo ""
+    echo "   Lower px value = faster scrolling. Higher px value = more control."
     echo ""
     read -p "   Choose [L]ow, [M]edium, or [H]igh (default: Medium): " sens_choice
     case "$sens_choice" in
@@ -1076,12 +1082,13 @@ prompt_preferences() {
     echo ""
 
     # 4. Dead Zone
-    echo "4. Dead Zone (jitter filter)"
-    echo "   Minimum finger movement to register scrolling:"
-    echo "   - None: Register all movement (most responsive)"
-    echo "   - Low: Filter tiny jitter (2px)"
-    echo "   - Default: Balanced filtering (5px)"
-    echo "   - High: Strong filtering (10px)"
+    echo "4. Dead Zone"
+    echo "   Minimum movement required before scrolling registers."
+    echo "   Filters out small unintentional movements (jitter/tremor)."
+    echo "   - None (0px): All movement registers - most responsive"
+    echo "   - Low (2px): Minimal filtering"
+    echo "   - Default (5px): Filters typical touchpad noise"
+    echo "   - High (10px): Strong filtering - good for shaky hands"
     echo ""
     read -p "   Choose [N]one, [L]ow, [D]efault, or [H]igh (default: Default): " dz_choice
     case "$dz_choice" in
@@ -1102,9 +1109,9 @@ prompt_preferences() {
 
     # 5. Pointer Lock
     echo "5. Pointer Lock"
-    echo "   Freeze mouse pointer while scrolling?"
-    echo "   - Yes: Pointer stays still (prevents losing window focus)"
-    echo "   - No: Pointer moves normally while scrolling"
+    echo "   Freeze mouse cursor position while scrolling."
+    echo "   - Yes: Cursor stays still - prevents losing window focus or clicking accidentally"
+    echo "   - No: Cursor moves with your finger while scrolling"
     echo ""
     read -p "   Lock pointer while scrolling? [Y/n] (default: Yes): " pl_choice
     case "$pl_choice" in
@@ -1119,11 +1126,12 @@ prompt_preferences() {
 
     # 6. Middle Button Behavior
     echo "6. Middle Button Behavior"
-    echo "   What happens when you tap the middle button (without scrolling)?"
+    echo "   How to handle middle-click while the scroll daemon is running:"
+    echo "   - Smart: Quick tap = middle-click, hold + move = scroll only"
+    echo "   - Block: Disable middle-click entirely (scroll only)"
+    echo "   - Native: Don't intercept - both middle-click and scroll may trigger"
     echo ""
-    echo "   - Smart: Tap = normal middle-click, Hold+move = scroll only"
-    echo "   - Block: Block middle-click entirely while daemon runs"
-    echo "   - Native: Don't intercept (may trigger middle-click while scrolling)"
+    echo "   Smart mode detects if you moved your finger before releasing."
     echo ""
     read -p "   Choose [S]mart, [B]lock, or [N]ative (default: Smart): " mb_choice
     case "$mb_choice" in
@@ -1141,12 +1149,12 @@ prompt_preferences() {
 
     # 7. Edge Scrolling
     echo "7. Edge Scrolling"
-    echo "   Enable accelerated scrolling in touchpad edge zones?"
-    echo "   - Hold middle button + move finger to edge zone"
-    echo "   - After brief dwell, edge zone activates faster scrolling"
-    echo "   - Keep moving finger in edge to scroll (speed based on depth)"
-    echo "   - Top/bottom edges: vertical scroll"
-    echo "   - Left/right edges: horizontal scroll (if enabled above)"
+    echo "   Enable auto-scroll zones at touchpad edges."
+    echo "   Hold your finger at an edge to scroll continuously:"
+    echo "   - Top/bottom edges: vertical scroll (speed increases deeper into edge)"
+    echo "   - Left/right edges: horizontal scroll (if horizontal enabled)"
+    echo ""
+    echo "   Requires brief pause (dwell) before activating to prevent accidental triggers."
     echo ""
     read -p "   Enable edge scrolling? [y/N] (default: No): " edge_choice
     case "$edge_choice" in
@@ -1156,10 +1164,10 @@ prompt_preferences() {
             # 7a. Zone size
             echo ""
             echo "   7a. Edge Zone Size"
-            echo "       How large should the edge zones be?"
-            echo "       - Small: 20% of touchpad (narrow edges)"
-            echo "       - Medium: 25% of touchpad (balanced)"
-            echo "       - Large: 30% of touchpad (wide edges)"
+            echo "       How much of the touchpad is designated as edge zones:"
+            echo "       - Small (20%): Narrow edge strips - more center space for normal scroll"
+            echo "       - Medium (25%): Balanced zone size"
+            echo "       - Large (30%): Wider edges - easier to hit but less center space"
             echo ""
             read -p "       Choose [S]mall, [M]edium, or [L]arge (default: Medium): " zone_choice
             case "$zone_choice" in
@@ -1176,18 +1184,20 @@ prompt_preferences() {
 
             # 7b. Dwell time
             echo ""
-            echo "   7b. Dwell Time"
-            echo "       How long must finger stay at edge before scrolling starts?"
-            echo "       - Low: 200ms (faster activation)"
-            echo "       - Medium: 300ms (balanced)"
-            echo "       - High: 500ms (prevents accidental triggers)"
+            echo "   7b. Edge Dwell Time"
+            echo "       How long finger must stay at edge before auto-scroll activates:"
+            echo "       - Fast (200ms): Quick activation - more responsive"
+            echo "       - Medium (300ms): Balanced timing"
+            echo "       - Slow (500ms): Longer wait - prevents accidental triggers"
             echo ""
-            read -p "       Choose [L]ow, [M]edium, or [H]igh (default: Medium): " dwell_choice
+            echo "       Moving >50px during dwell resets the timer."
+            echo ""
+            read -p "       Choose [F]ast, [M]edium, or [S]low (default: Medium): " dwell_choice
             case "$dwell_choice" in
-                [Ll]*)
+                [Ff]*|[Ll]*)  # Accept F(ast) or L(ow) for backward compatibility
                     EDGE_SCROLL_DWELL="200"
                     ;;
-                [Hh]*)
+                [Ss]*|[Hh]*)  # Accept S(low) or H(igh) for backward compatibility
                     EDGE_SCROLL_DWELL="500"
                     ;;
                 *)
@@ -1208,14 +1218,38 @@ show_summary() {
     local h_display="Enabled"
     [[ "$HORIZONTAL_SCROLL" == "false" ]] && h_display="Disabled"
     local dir_display="${SCROLL_DIRECTION^}"
+
+    # Add numeric values to sensitivity display
     local sens_display="${SENSITIVITY^}"
+    case "$SENSITIVITY" in
+        low) sens_display="Low (30px)" ;;
+        medium) sens_display="Medium (15px)" ;;
+        high) sens_display="High (8px)" ;;
+    esac
+
+    # Add numeric values to dead zone display
     local dz_display="${DEAD_ZONE^}"
+    case "$DEAD_ZONE" in
+        none) dz_display="None (0px)" ;;
+        low) dz_display="Low (2px)" ;;
+        default) dz_display="Default (5px)" ;;
+        high) dz_display="High (10px)" ;;
+    esac
+
     local pl_display="Enabled"
     [[ "$POINTER_LOCK" == "false" ]] && pl_display="Disabled"
     local mb_display="${MIDDLE_BUTTON^}"
+
+    # Add numeric values to edge scroll display
     local edge_display="Disabled"
     if [[ "$EDGE_SCROLL_ENABLED" == "true" ]]; then
-        edge_display="Enabled (${EDGE_SCROLL_ZONE}, ${EDGE_SCROLL_DWELL}ms)"
+        local zone_pct="25%"  # Default fallback for invalid values
+        case "$EDGE_SCROLL_ZONE" in
+            small) zone_pct="20%" ;;
+            medium) zone_pct="25%" ;;
+            large) zone_pct="30%" ;;
+        esac
+        edge_display="Enabled (${zone_pct} zone, ${EDGE_SCROLL_DWELL}ms dwell)"
     fi
 
     echo "┌─ SUMMARY ────────────────────────────────────────────────────┐"
@@ -1512,6 +1546,11 @@ do_install() {
     echo "  Change settings: $(basename "$0") --reconfigure"
     echo "  Uninstall:       $(basename "$0") --remove"
     echo "  View logs:       journalctl --user -u gpd-scroll -f"
+    echo ""
+    echo "ADVANCED:"
+    echo "  Config file:     ~/.config/gpd-scroll/config"
+    echo "                   Edit directly for custom values (e.g., SENSITIVITY=12)"
+    echo "                   Then restart: systemctl --user restart gpd-scroll"
     echo "================================================================"
 }
 
